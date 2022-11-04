@@ -26,30 +26,27 @@ jobs:
       id-token: write
 
     steps:
-      - name: get latest release with tag
-        id: latestrelease
-        run: |
-          echo "::set-output name=releasetag::$(curl -s https://api.github.com/repos/engelsystem/engelsystem/releases/latest | jq '.tag_name' | sed 's/\"//g')"
-      - name: confirm release tag
-        run: |
-          echo ${{ steps.latestrelease.outputs.releasetag }}
+#      - name: get latest release with tag
+#        id: latestrelease
+#        run: |
+#          echo "::set-output name=releasetag::$(curl -s https://api.github.com/repos/engelsystem/engelsystem/releases/latest | jq '.tag_name' | sed 's/\"//g')"
+#      - name: confirm release tag
+#        run: |
+#          echo ${{ steps.latestrelease.outputs.releasetag }}
       - name: Checkout latest release from repo
         uses: actions/checkout@v3
         with:
           repository: engelsystem/engelsystem
-          ref: ${{ steps.latestrelease.outputs.releasetag }}
+#          ref: ${{ steps.latestrelease.outputs.releasetag }}
           
-      - name: testing
-        run: |
-          ls -alh
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
-        with:
-          cosign-release: 'v1.11.0'
+#      - name: Install cosign
+#        if: github.event_name != 'pull_request'
+#        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
+#        with:
+#          cosign-release: 'v1.11.0'
 
 
       # Workaround: https://github.com/docker/build-push-action/issues/461
