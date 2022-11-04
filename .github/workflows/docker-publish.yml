@@ -38,6 +38,10 @@ jobs:
         with:
           repository: engelsystem/engelsystem
           ref: ${{ steps.latestrelease.outputs.releasetag }}
+          
+      - name: testing
+        run: |
+          ls -alh
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
