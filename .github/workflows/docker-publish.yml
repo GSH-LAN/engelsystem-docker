@@ -38,7 +38,6 @@ jobs:
         with:
           repository: engelsystem/engelsystem
           ref: ${{ steps.latestrelease.outputs.releasetag }}
-          path: engelsystem
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
@@ -77,7 +76,7 @@ jobs:
         id: build-and-push
         uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a
         with:
-          context: engelsystem/docker/.
+          context: docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
