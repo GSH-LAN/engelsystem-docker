@@ -1,9 +1,8 @@
 name: GitHub Sync Fork
 
 on:
-  schedule:
-    - cron:  '0 12 * * *'
-
+  #schedule:
+  #  - cron:  '0 12 * * *'
   workflow_dispatch:  # click the button on Github repo!
 
 jobs:
