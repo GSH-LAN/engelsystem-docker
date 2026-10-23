@@ -1,50 +1,88 @@
 name: GitHub Sync Fork
 
 on:
-  #schedule:
-  #  - cron:  '0 12 * * *'
-  workflow_dispatch:  # click the button on Github repo!
+  schedule:
+    - cron: '30 4 * * 1'  # Runs weekly on Monday at 04:30 UTC
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force Docker Image Build even if no new upstream changes'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
 
 jobs:
   sync_latest_from_upstream:
     runs-on: ubuntu-latest
     name: Sync latest commits from upstream repo
+    outputs:
+      has_new_commits: ${{ steps.sync.outputs.has_new_commits }}
+      has_new_tags: ${{ steps.sync-tags.outputs.has_new_tags }}
+      should_build: ${{ steps.check-build.outputs.should_build }}
 
     steps:
-    # REQUIRED step
-    # Step 1: run a standard checkout action, provided by github
-    - name: Checkout target repo
-      uses: actions/checkout@v3
-      with:
-        # optional: set the branch to checkout,
-        # sync action checks out your 'target_sync_branch' anyway
-        ref: main
+      # Step 1: run checkout action
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-    # REQUIRED step
-    # Step 2: run the sync action
-    - name: Sync upstream changes
-      id: sync
-      uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
-      with:
-        target_sync_branch: main
-        # REQUIRED 'target_repo_token' exactly like this!
-        target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-        upstream_sync_branch: main
-        upstream_sync_repo: engelsystem/engelsystem
-        upstream_pull_args: '--rebase --tags'
-        target_branch_push_args: '--force'
-        
-        # Set test_mode true to run tests instead of the true action!!
-        test_mode: false
-      
-    # Step 3: Display a sample message based on the sync output var 'has_new_commits'
-    - name: New commits found
-      if: steps.sync.outputs.has_new_commits == 'true'
-      run: echo "New commits were found to sync."
-    
-    - name: No new commits
-      if: steps.sync.outputs.has_new_commits == 'false'
-      run: echo "There were no new commits."
-      
-    - name: Show value of 'has_new_commits'
-      run: echo ${{ steps.sync.outputs.has_new_commits }}
+      # Step 2: run the sync action
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
+        with:
+          target_sync_branch: main
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          upstream_sync_branch: main
+          upstream_sync_repo: engelsystem/engelsystem
+          upstream_pull_args: '--rebase --tags'
+          target_branch_push_args: '--force'
+          test_mode: false
+
+      # Step 3: Fetch upstream tags and push to origin
+      - name: Sync upstream tags to origin
+        id: sync-tags
+        run: |
+          git remote add upstream https://github.com/engelsystem/engelsystem.git 2>/dev/null || true
+          git fetch upstream --tags
+          PUSH_TAGS_OUTPUT=$(git push origin --tags 2>&1 || true)
+          echo "$PUSH_TAGS_OUTPUT"
+          if echo "$PUSH_TAGS_OUTPUT" | grep -qE "\[new tag\]|\[new reference\]"; then
+            echo "has_new_tags=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_new_tags=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 4: Evaluate if build should be triggered
+      - name: Check if image build is needed
+        id: check-build
+        run: |
+          HAS_COMMITS="${{ steps.sync.outputs.has_new_commits }}"
+          HAS_TAGS="${{ steps.sync-tags.outputs.has_new_tags }}"
+          FORCE_BUILD="${{ inputs.force_build }}"
+
+          echo "has_new_commits: $HAS_COMMITS"
+          echo "has_new_tags: $HAS_TAGS"
+          echo "force_build: $FORCE_BUILD"
+
+          if [ "$HAS_COMMITS" = "true" ] || [ "$HAS_TAGS" = "true" ] || [ "$FORCE_BUILD" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Decision: Triggering Docker image build."
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Decision: No upstream changes found. Skipping Docker image build."
+          fi
+
+  build_image:
+    name: Build Docker Image
+    needs: sync_latest_from_upstream
+    if: needs.sync_latest_from_upstream.outputs.should_build == 'true'
+    uses: ./.github/workflows/docker-image.yml
+    secrets: inherit
